@@ -3,9 +3,6 @@ name: Deploy PhishLab Server (DEV)
 on:
   push:
     branches: ["dev"]
-    paths:
-      - "server/**"
-      - ".github/workflows/deploy-server-dev.yml"
 
 concurrency:
   group: phishlab-dev-deploy
@@ -16,22 +13,18 @@ jobs:
     runs-on: self-hosted
 
     env:
-      # --------- Optional / meta ----------
       TZ: ${{ secrets.TZ }}
       DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
 
-      # --------- Postgres (container postgres) ----------
       POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
       POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
 
-      # --------- Laravel app ----------
       APP_ENV: ${{ secrets.APP_ENV }}
       APP_DEBUG: ${{ secrets.APP_DEBUG }}
       APP_URL: ${{ secrets.APP_URL }}
       APP_KEY: ${{ secrets.APP_KEY }}
 
-      # --------- Laravel DB ----------
       DB_DATABASE: ${{ secrets.DB_DATABASE }}
       DB_USERNAME: ${{ secrets.DB_USERNAME }}
       DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -42,7 +35,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Validate required env (fail fast)
+      - name: Validate required secrets
         shell: bash
         run: |
           set -e
@@ -57,43 +50,33 @@ jobs:
               exit 1
             fi
           done
-          echo "✅ Required secrets are present"
-
-      - name: Show versions (safe)
-        shell: bash
-        run: |
-          set -e
-          echo "DEPLOY_ENV=${DEPLOY_ENV:-dev}"
-          echo "TZ=${TZ:-}"
-          echo "Runner host: $(hostname)"
-          echo "User: $(whoami)"
-          docker --version
-          docker compose version
+          echo "✅ Secrets OK"
 
       - name: Deploy docker compose (build + up)
         working-directory: server
         shell: bash
         run: |
           set -euo pipefail
+          docker --version
+          docker compose version
 
-          # Pull images if relevant (doesn't fail if none)
           docker compose pull || true
-
-          # Build and start
           docker compose up -d --build
-
-          # Show status
           docker compose ps
 
-      - name: Run migrations (keep DB, update schema)
+      - name: Install deps + migrate
         working-directory: server
         shell: bash
         run: |
           set -e
           docker compose exec -T api php -v
+
+          # vendor est dans un volume, pas dans le repo => no EACCES
+          docker compose exec -T api composer install --no-interaction --prefer-dist --no-progress
+
           docker compose exec -T api php artisan migrate --force
 
-      - name: Smoke check nginx (status page)
+      - name: Smoke check nginx
         shell: bash
         run: |
           set -e
