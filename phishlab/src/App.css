@@ -59,9 +59,6 @@ a:hover {
 h1 {
   text-align: center;
 }
-button {
-  
-}
 
 button {
   cursor: pointer;
@@ -80,7 +77,7 @@ button {
   outline: none;
 }
 
-#greet-input {
+#input {
   margin-right: 5px;
 }
 

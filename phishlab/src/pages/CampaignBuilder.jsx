@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from "react";
 import "../App.css";
 import { useEmailList } from "../hooks/useEmailList";
+import { useNavigate } from "react-router-dom";
 
-function CampaignBuilder({ onBack }) {
+function CampaignBuilder() {
+    const nav = useNavigate();
     // ===== Emails (colonne centrale) via hook =====
     const {
         emails,
@@ -186,7 +188,7 @@ function CampaignBuilder({ onBack }) {
                             Create Campaign
                         </button>
 
-                        <button className="button-secondary" onClick={onBack}>
+                        <button className="button-secondary" onClick={() => nav("/")}>
                             Back
                         </button>
                     </div>
