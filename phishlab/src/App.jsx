@@ -1,19 +1,36 @@
 import { useState } from "react";
 import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
+
+import { Routes, Route } from "react-router-dom";
+
+import Index from "./index";
+import Dashboard from "./dashboard";
+import Register from "./register";
+import Signin from "./signin"
+
 import "./App.css";
+import CampaignBuilder from "./pages/CampaignBuilder";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
+  /*const [greetMsg, setGreetMsg] = useState("");
   const [name, setName] = useState("");
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
     setGreetMsg(await invoke("greet", { name }));
-  }
+  }*/
 
   return (
-    <main className="container">
+    <Routes>
+      <Route path = "/" element={<Index />} />
+      <Route path = "/campaignBuilder" element={<CampaignBuilder />} />
+      <Route path = "/dashboard" element={<Dashboard />} />
+      <Route path = "/register" element={<Register />} />
+      <Route path = "/signin" element={<Signin />} />
+    </Routes>
+      /*heyheyhey*/
+    /*<main className="container">
       <h1>Welcome to Tauri + React</h1>
 
       <div className="row">
@@ -44,7 +61,7 @@ function App() {
         <button type="submit">Greet</button>
       </form>
       <p>{greetMsg}</p>
-    </main>
+    </main>*/
   );
 }
 
