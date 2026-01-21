@@ -1,7 +1,7 @@
 FROM php:8.4-fpm
 
 RUN apt-get update && apt-get install -y \
-    git unzip libpq-dev \
+    git unzip libpq-dev rsync \
   && docker-php-ext-install pdo pdo_pgsql \
   && rm -rf /var/lib/apt/lists/*
 

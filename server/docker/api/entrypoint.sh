@@ -1,24 +1,32 @@
 #!/usr/bin/env bash
 set -e
 
-cd /var/www/html
-
-# Laravel needs writable dirs
-mkdir -p storage bootstrap/cache || true
-chmod -R 775 storage bootstrap/cache || true
-
-# If Laravel isn't present, still start php-fpm
-if [ ! -f artisan ]; then
-  echo "[api] Laravel not found (artisan missing). Starting php-fpm."
+# 1) Sync code from RO (/app) to RW workdir (/var/www/html)
+if [ -d /app ] && [ -f /app/artisan ]; then
+  echo "[api] Syncing application code into workdir..."
+  rsync -a --delete \
+    --exclude vendor \
+    --exclude storage \
+    --exclude bootstrap/cache \
+    /app/ /var/www/html/
+else
+  echo "[api] /app not found or artisan missing. Starting php-fpm."
   exec php-fpm
 fi
 
-# Install deps if vendor missing/empty
+cd /var/www/html
+
+# 2) Ensure writable dirs for Laravel
+mkdir -p storage bootstrap/cache || true
+chmod -R 775 storage bootstrap/cache || true
+
+# 3) Install deps if vendor missing
 if [ ! -f vendor/autoload.php ]; then
   echo "[api] Installing composer dependencies..."
   composer install --no-interaction --prefer-dist --no-progress
 fi
 
+# 4) Wait DB
 echo "[api] Waiting for database..."
 php -r '
 $host=getenv("DB_HOST")?: "postgres";
@@ -32,6 +40,7 @@ fwrite(STDERR, "DB not reachable\n");
 exit(1);
 ';
 
+# 5) Migrate (safe)
 echo "[api] Running migrations..."
 php artisan migrate --force || true
 

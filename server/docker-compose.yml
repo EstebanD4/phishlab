@@ -35,9 +35,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
 
       TZ: ${TZ}
-    # ⚠️ Code RO + volumes RW (évite vendor root-owned dans le repo)
     volumes:
-      - ./api:/var/www/html:ro
+      # Code Laravel en RO (ne pollue pas le workspace du runner)
+      - ./api:/app:ro
+
+      # Workdir RW (dans volumes Docker)
+      - api_work:/var/www/html
       - api_vendor:/var/www/html/vendor
       - api_storage:/var/www/html/storage
       - api_bootstrap_cache:/var/www/html/bootstrap/cache
@@ -68,6 +71,7 @@ services:
 
 volumes:
   pg_data:
+  api_work:
   api_vendor:
   api_storage:
   api_bootstrap_cache:
