@@ -35,7 +35,7 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Validate required secrets (fail fast)
+      - name: Validate required secrets
         shell: bash
         run: |
           set -e
@@ -71,7 +71,7 @@ jobs:
           set -e
           docker compose exec -T api php -v
 
-          # Ensure vendor exists (now stored in docker volume, not in repo)
+          # vendor est dans un volume, pas dans le repo => no EACCES
           docker compose exec -T api composer install --no-interaction --prefer-dist --no-progress
 
           docker compose exec -T api php artisan migrate --force
