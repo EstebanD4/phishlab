@@ -3,9 +3,6 @@ name: Deploy PhishLab Server (DEV)
 on:
   push:
     branches: ["dev"]
-    paths:
-      - "server/**"
-      - ".github/workflows/deploy-server-dev.yml"
 
 concurrency:
   group: phishlab-dev-deploy
