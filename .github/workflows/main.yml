@@ -81,14 +81,22 @@ jobs:
 
           # Show status
           docker compose ps
-
-      - name: Run migrations (keep DB, update schema)
+      - name: Install deps + migrate
         working-directory: server
         shell: bash
         run: |
           set -e
-          docker compose exec -T api php -v
+
+          # Wait until api container is up
+          docker compose ps
+
+          # Ensure dependencies are installed (vendor/)
+          docker compose exec -T api composer install --no-interaction --prefer-dist --no-progress
+
+          # Run migrations
           docker compose exec -T api php artisan migrate --force
+
+
 
       - name: Smoke check nginx (status page)
         shell: bash
