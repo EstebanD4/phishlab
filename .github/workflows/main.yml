@@ -1,0 +1,98 @@
+name: Deploy PhishLab Server (DEV)
+
+on:
+  push:
+    branches: ["dev"]
+
+concurrency:
+  group: phishlab-dev-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    env:
+      # --------- Optional / meta ----------
+      TZ: ${{ secrets.TZ }}
+      DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
+
+      # --------- Postgres (container postgres) ----------
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+
+      # --------- Laravel app ----------
+      APP_ENV: ${{ secrets.APP_ENV }}
+      APP_DEBUG: ${{ secrets.APP_DEBUG }}
+      APP_URL: ${{ secrets.APP_URL }}
+      APP_KEY: ${{ secrets.APP_KEY }}
+
+      # --------- Laravel DB ----------
+      DB_DATABASE: ${{ secrets.DB_DATABASE }}
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Validate required env (fail fast)
+        shell: bash
+        run: |
+          set -e
+          req_vars=(
+            POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
+            APP_ENV APP_DEBUG APP_URL APP_KEY
+            DB_DATABASE DB_USERNAME DB_PASSWORD
+          )
+          for v in "${req_vars[@]}"; do
+            if [ -z "${!v:-}" ]; then
+              echo "❌ Missing required secret: $v"
+              exit 1
+            fi
+          done
+          echo "✅ Required secrets are present"
+
+      - name: Show versions (safe)
+        shell: bash
+        run: |
+          set -e
+          echo "DEPLOY_ENV=${DEPLOY_ENV:-dev}"
+          echo "TZ=${TZ:-}"
+          echo "Runner host: $(hostname)"
+          echo "User: $(whoami)"
+          docker --version
+          docker compose version
+
+      - name: Deploy docker compose (build + up)
+        working-directory: server
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Pull images if relevant (doesn't fail if none)
+          docker compose pull || true
+
+          # Build and start
+          docker compose up -d --build
+
+          # Show status
+          docker compose ps
+
+      - name: Run migrations (keep DB, update schema)
+        working-directory: server
+        shell: bash
+        run: |
+          set -e
+          docker compose exec -T api php -v
+          docker compose exec -T api php artisan migrate --force
+
+      - name: Smoke check nginx (status page)
+        shell: bash
+        run: |
+          set -e
+          curl -fsS http://127.0.0.1:8082/ > /dev/null
+          echo "✅ Nginx OK on :8082"
