@@ -10,6 +10,7 @@ import Register from "./register";
 import Signin from "./signin"
 
 import "./App.css";
+import CampaignBuilder from "./pages/CampaignBuilder";
 
 function App() {
   /*const [greetMsg, setGreetMsg] = useState("");
@@ -23,6 +24,7 @@ function App() {
   return (
     <Routes>
       <Route path = "/" element={<Index />} />
+      <Route path = "/campaignBuilder" element={<CampaignBuilder />} />
       <Route path = "/dashboard" element={<Dashboard />} />
       <Route path = "/register" element={<Register />} />
       <Route path = "/signin" element={<Signin />} />
