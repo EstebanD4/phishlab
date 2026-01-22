@@ -1,84 +1,71 @@
-name: Deploy PhishLab Server (DEV)
+name: Deploy (dev) to VPS
 
 on:
   push:
-    branches: ["dev"]
+    branches: [ "dev" ]
+  workflow_dispatch: {}
 
 concurrency:
-  group: phishlab-dev-deploy
+  group: deploy-dev
   cancel-in-progress: true
 
 jobs:
   deploy:
-    runs-on: self-hosted
-
-    env:
-      TZ: ${{ secrets.TZ }}
-      DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
-
-      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-
-      APP_ENV: ${{ secrets.APP_ENV }}
-      APP_DEBUG: ${{ secrets.APP_DEBUG }}
-      APP_URL: ${{ secrets.APP_URL }}
-      APP_KEY: ${{ secrets.APP_KEY }}
-
-      DB_DATABASE: ${{ secrets.DB_DATABASE }}
-      DB_USERNAME: ${{ secrets.DB_USERNAME }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          fetch-depth: 1
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT }}
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            set -e
+            cd /var/www/phishlab/
 
-      - name: Validate required secrets
-        shell: bash
-        run: |
-          set -e
-          req_vars=(
-            POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
-            APP_ENV APP_DEBUG APP_URL APP_KEY
-            DB_DATABASE DB_USERNAME DB_PASSWORD
-          )
-          for v in "${req_vars[@]}"; do
-            if [ -z "${!v:-}" ]; then
-              echo "❌ Missing required secret: $v"
-              exit 1
-            fi
-          done
-          echo "✅ Secrets OK"
+            echo "== Go to project dir =="
+            cd "${{ secrets.VPS_PROJECT_DIR }}"
 
-      - name: Deploy docker compose (build + up)
-        working-directory: server
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker --version
-          docker compose version
+            echo "== Git update =="
+            git fetch --all --prune
+            git checkout dev
+            git reset --hard origin/dev
 
-          docker compose pull || true
-          docker compose up -d --build
-          docker compose ps
+            echo "== Export env (from GitHub Secrets) =="
+            export APP_ENV='${{ secrets.APP_ENV }}'
+            export APP_DEBUG='${{ secrets.APP_DEBUG }}'
+            export APP_URL='${{ secrets.APP_URL }}'
+            export APP_KEY='${{ secrets.APP_KEY }}'
 
-      - name: Install deps + migrate
-        working-directory: server
-        shell: bash
-        run: |
-          set -e
-          docker compose exec -T api php -v
+            export DB_CONNECTION='${{ secrets.DB_CONNECTION }}'
+            export DB_HOST='${{ secrets.DB_HOST }}'
+            export DB_PORT='${{ secrets.DB_PORT }}'
+            export DB_DATABASE='${{ secrets.DB_DATABASE }}'
+            export DB_USERNAME='${{ secrets.DB_USERNAME }}'
+            export DB_PASSWORD='${{ secrets.DB_PASSWORD }}'
+            export DB_ROOT_PASSWORD='${{ secrets.DB_ROOT_PASSWORD }}'
 
-          # vendor est dans un volume, pas dans le repo => no EACCES
-          docker compose exec -T api composer install --no-interaction --prefer-dist --no-progress
+            # Optionnel (si tu en as besoin)
+            # export REDIS_HOST='${{ secrets.REDIS_HOST }}'
+            # export MAIL_HOST='${{ secrets.MAIL_HOST }}'
 
-          docker compose exec -T api php artisan migrate --force
+            echo "== Docker compose up (server/) =="
+            cd server
 
-      - name: Smoke check nginx
-        shell: bash
-        run: |
-          set -e
-          curl -fsS http://127.0.0.1:8082/ > /dev/null
-          echo "✅ Nginx OK on :8082"
+            docker compose pull || true
+            docker compose up -d --build
+
+            echo "== Laravel cache + migrations (si container 'api') =="
+            # Si ton service s'appelle autrement, change "api"
+            docker compose exec -T api php artisan config:clear || true
+            docker compose exec -T api php artisan config:cache
+            docker compose exec -T api php artisan route:cache || true
+            docker compose exec -T api php artisan view:cache || true
+            docker compose exec -T api php artisan migrate --force || true
+
+            echo "== Done =="
+            docker compose ps
