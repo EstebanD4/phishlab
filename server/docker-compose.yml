@@ -2,7 +2,7 @@ services:
   api:
     build:
       context: ./api
-      dockerfile: docker/api/Dockerfile
+      dockerfile: ./docker/api/Dockerfile
     container_name: server_api
     environment:
       APP_ENV: ${APP_ENV}
