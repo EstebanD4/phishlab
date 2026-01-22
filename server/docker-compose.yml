@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: .
+      context: ./api
       dockerfile: docker/api/Dockerfile
     container_name: server_api
     environment:
