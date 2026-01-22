@@ -1,84 +1,53 @@
-name: Deploy PhishLab Server (DEV)
+name: CI-CD
 
 on:
   push:
     branches: ["dev"]
 
-concurrency:
-  group: phishlab-dev-deploy
-  cancel-in-progress: true
-
 jobs:
   deploy:
-    runs-on: self-hosted
-
-    env:
-      TZ: ${{ secrets.TZ }}
-      DEPLOY_ENV: ${{ secrets.DEPLOY_ENV }}
-
-      POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-      POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-
-      APP_ENV: ${{ secrets.APP_ENV }}
-      APP_DEBUG: ${{ secrets.APP_DEBUG }}
-      APP_URL: ${{ secrets.APP_URL }}
-      APP_KEY: ${{ secrets.APP_KEY }}
-
-      DB_DATABASE: ${{ secrets.DB_DATABASE }}
-      DB_USERNAME: ${{ secrets.DB_USERNAME }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.0
         with:
-          fetch-depth: 1
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_PATH }}/server
 
-      - name: Validate required secrets
-        shell: bash
-        run: |
-          set -e
-          req_vars=(
-            POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD
-            APP_ENV APP_DEBUG APP_URL APP_KEY
-            DB_DATABASE DB_USERNAME DB_PASSWORD
-          )
-          for v in "${req_vars[@]}"; do
-            if [ -z "${!v:-}" ]; then
-              echo "❌ Missing required secret: $v"
-              exit 1
-            fi
-          done
-          echo "✅ Secrets OK"
+            git fetch --all
+            git reset --hard origin/main
 
-      - name: Deploy docker compose (build + up)
-        working-directory: server
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker --version
-          docker compose version
+            echo "Generating .env from GitHub Secrets..."
 
-          docker compose pull || true
-          docker compose up -d --build
-          docker compose ps
+            cat > .env <<EOF
+            APP_NAME=${{ secrets.APP_NAME }}
+            APP_ENV=${{ secrets.APP_ENV }}
+            APP_KEY=${{ secrets.APP_KEY }}
+            APP_DEBUG=${{ secrets.APP_DEBUG }}
+            APP_URL=${{ secrets.APP_URL }}
 
-      - name: Install deps + migrate
-        working-directory: server
-        shell: bash
-        run: |
-          set -e
-          docker compose exec -T api php -v
+            LOG_CHANNEL=${{ secrets.LOG_CHANNEL }}
+            LOG_LEVEL=${{ secrets.LOG_LEVEL }}
 
-          # vendor est dans un volume, pas dans le repo => no EACCES
-          docker compose exec -T api composer install --no-interaction --prefer-dist --no-progress
+            DB_CONNECTION=pgsql
+            DB_HOST=db
+            DB_PORT=5432
+            DB_DATABASE=${{ secrets.DB_DATABASE }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            EOF
 
-          docker compose exec -T api php artisan migrate --force
+            chmod 600 .env
 
-      - name: Smoke check nginx
-        shell: bash
-        run: |
-          set -e
-          curl -fsS http://127.0.0.1:8082/ > /dev/null
-          echo "✅ Nginx OK on :8082"
+            docker compose up -d --build
+
+            docker compose exec -T api php artisan migrate --force
+            docker compose exec -T api php artisan config:clear
+            docker compose exec -T api php artisan config:cache
+            docker compose exec -T api php artisan route:cache
