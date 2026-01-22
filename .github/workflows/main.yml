@@ -18,7 +18,7 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             set -e
-            cd /var/www/phishlab/server
+            cd /var/www/phishlab/
 
             git fetch --all
             git reset --hard origin/main
