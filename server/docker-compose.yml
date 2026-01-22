@@ -1,77 +1,52 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: phishlab-postgres
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
   api:
     build:
       context: .
-      dockerfile: docker/api/Dockerfile
-    container_name: phishlab-api
+      dockerfile: Dockerfile
+    container_name: server_api
     environment:
       APP_ENV: ${APP_ENV}
       APP_DEBUG: ${APP_DEBUG}
       APP_URL: ${APP_URL}
       APP_KEY: ${APP_KEY}
 
-      DB_CONNECTION: pgsql
-      DB_HOST: postgres
-      DB_PORT: 5432
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
 
-      TZ: ${TZ}
+      TZ: Europe/Paris
     volumes:
-      # Code Laravel en RO (ne pollue pas le workspace du runner)
-      - ./api:/app:ro
-
-      # Workdir RW (dans volumes Docker)
-      - api_work:/var/www/html
-      - api_vendor:/var/www/html/vendor
       - api_storage:/var/www/html/storage
-      - api_bootstrap_cache:/var/www/html/bootstrap/cache
+      - api_cache:/var/www/html/bootstrap/cache
     depends_on:
-      postgres:
-        condition: service_healthy
+      - db
 
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: phishlab-nginx
+  web:
+    image: nginx:alpine
+    container_name: server_web
     ports:
-      - "8082:80"
+      - "8080:80"
     volumes:
-      - ./api:/var/www/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./nginx/status.html:/usr/share/nginx/html/status.html:ro
     depends_on:
       - api
 
-  adminer:
-    image: adminer:4
-    container_name: phishlab-adminer
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
+  db:
+    image: mariadb:11
+    container_name: server_db
+    environment:
+      MARIADB_DATABASE: ${DB_DATABASE}
+      MARIADB_USER: ${DB_USERNAME}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      TZ: Europe/Paris
+    volumes:
+      - mariadb_data:/var/lib/mysql
 
 volumes:
-  pg_data:
-  api_work:
-  api_vendor:
+  mariadb_data:
   api_storage:
-  api_bootstrap_cache:
+  api_cache:

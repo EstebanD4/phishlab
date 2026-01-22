@@ -14,7 +14,7 @@ else
   exec php-fpm
 fi
 
-cd /var/www/html
+cd /var/www/html    # donne perm runner sur serv ubuntu   1010
 
 # 2) Ensure writable dirs for Laravel
 mkdir -p storage bootstrap/cache || true

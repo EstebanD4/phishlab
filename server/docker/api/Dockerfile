@@ -1,15 +1,25 @@
 FROM php:8.4-fpm
 
+# Dépendances + extensions PHP
 RUN apt-get update && apt-get install -y \
-    git unzip libpq-dev rsync \
-  && docker-php-ext-install pdo pdo_pgsql \
-  && rm -rf /var/lib/apt/lists/*
+    git unzip libzip-dev libicu-dev \
+    && docker-php-ext-install pdo pdo_mysql zip intl opcache \
+    && rm -rf /var/lib/apt/lists/*
 
+# Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-COPY docker/api/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Cache deps
+COPY composer.json composer.lock ./
+RUN composer install --no-interaction --prefer-dist --no-progress
 
-CMD ["/entrypoint.sh"]
+# Code
+COPY . .
+
+# Droits Laravel
+RUN chown -R www-data:www-data storage bootstrap/cache
+
+EXPOSE 9000
+CMD ["php-fpm"]
