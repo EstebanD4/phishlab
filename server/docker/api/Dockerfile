@@ -12,8 +12,16 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 
 # Cache deps
-COPY composer.json composer.lock ./
-RUN composer install --no-interaction --prefer-dist --no-progress
+COPY composer.json ./
+# copier composer.lock seulement s'il existe
+# (workaround Docker: on copie tout et on gère en bash)
+COPY . .
+RUN if [ -f composer.lock ]; then \
+      composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader; \
+    else \
+      composer update --no-dev --prefer-dist --no-interaction --optimize-autoloader; \
+    fi
+
 
 # Code
 COPY . .
