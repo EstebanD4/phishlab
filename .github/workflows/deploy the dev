@@ -1,0 +1,59 @@
+name: Deploy (DEV VPS)
+
+on:
+  push:
+    branches: ["dev"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to DEV VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEV_VPS_HOST }}
+          username: ${{ secrets.DEV_VPS_USER }}
+          key: ${{ secrets.DEV_VPS_SSH_KEY }}
+          port: ${{ secrets.DEV_VPS_PORT || 22 }}
+          script: |
+            set -e
+
+            echo "➡️ Deploying to DEV VPS..."
+
+            cd ${{ secrets.DEV_VPS_PATH }}/server
+
+            git fetch --all
+            git checkout dev
+            git reset --hard origin/dev
+
+            echo "🔐 Generating .env (DEV)"
+            cat > .env <<EOF
+            APP_NAME=${{ secrets.APP_NAME }}
+            APP_ENV=staging
+            APP_KEY=${{ secrets.APP_KEY }}
+            APP_DEBUG=true
+            APP_URL=http://${{ secrets.DEV_VPS_HOST }}
+
+            LOG_CHANNEL=stack
+            LOG_LEVEL=debug
+
+            DB_CONNECTION=pgsql
+            DB_HOST=db
+            DB_PORT=5432
+            DB_DATABASE=${{ secrets.DB_DATABASE }}
+            DB_USERNAME=${{ secrets.DB_USERNAME }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            EOF
+
+            chmod 600 .env
+
+            echo "🐳 Docker up (DEV)"
+            docker compose up -d --build
+
+            echo "🧱 Laravel (DEV)"
+            docker compose exec -T api php artisan migrate --force
+            docker compose exec -T api php artisan config:clear
+            docker compose exec -T api php artisan route:clear
+            docker compose exec -T api php artisan view:clear
+
+            echo "✅ DEV deployment done"
