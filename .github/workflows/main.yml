@@ -24,7 +24,8 @@ jobs:
           script_stop: true
           command_timeout: 30m
           script: |
-            set -euo pipefail
+            set -e
+            cd /var/www/phishlab/
 
             echo "== Go to project dir =="
             cd "${{ secrets.VPS_PROJECT_DIR }}"
