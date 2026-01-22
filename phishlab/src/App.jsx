@@ -1,67 +1,23 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-
 import { Routes, Route } from "react-router-dom";
 
 import Index from "./index";
-import Dashboard from "./dashboard";
-import Register from "./register";
-import Signin from "./signin"
-
-import "./App.css";
+import Dashboard from "./pages/dashboard";
+import Register from "./pages/register";
+import Signin from "./pages/signin";
 import CampaignBuilder from "./pages/CampaignBuilder";
 
-function App() {
-  /*const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+import "./App.css";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }*/
+function App() {
 
   return (
     <Routes>
-      <Route path = "/" element={<Index />} />
+      <Route path = "/index" element={<Index />} />
       <Route path = "/campaignBuilder" element={<CampaignBuilder />} />
       <Route path = "/dashboard" element={<Dashboard />} />
       <Route path = "/register" element={<Register />} />
-      <Route path = "/signin" element={<Signin />} />
+      <Route path = "/" element={<Signin />} />
     </Routes>
-      /*heyheyhey*/
-    /*<main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://reactjs.org" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>*/
   );
 }
 
