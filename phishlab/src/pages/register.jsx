@@ -31,14 +31,21 @@ export default function Register()
             }
             else
             {
-                if(password.length < 8)
+                if((email.includes("=") == true) || (email.includes(";") == true) || (email.includes("(") == true) || (email.includes(")") == true) || (email.includes('"') == true))
                 {
-                    alert("Veuillez entrer un mot de passe plus long !");
+                    alert("Veuillez ne pas utiliser de caractère spécial !");
                 }
-                else     
+                else 
                 {
-                    //alert(`Nom ${name}, Prénom : ${firstname}, Email : ${email}, Mdp : ${password}`);
-                    setMsg(await invoke("sendRegisterForm", {name: name, firstname: firstname, email: email, password: password}));
+                    if(password.length < 8)
+                    {
+                        alert("Veuillez entrer un mot de passe plus long !");
+                    }
+                    else     
+                    {
+                        //alert(`Nom ${name}, Prénom : ${firstname}, Email : ${email}, Mdp : ${password}`);
+                        setMsg(await invoke("sendRegisterForm", {name: name, firstname: firstname, email: email, password: password}));
+                    }
                 }
             }
         }

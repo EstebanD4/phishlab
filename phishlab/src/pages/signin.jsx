@@ -29,16 +29,31 @@ export default function Login()
             }
             else     
             {
-                //alert(`Email : ${email}, Mdp : ${password}`);
-                setMsg(await invoke("sendLoginForm", {email: email, password: password}));
+                if((email.includes("=") == true) || (email.includes(";") == true) || (email.includes("(") == true) || (email.includes(")") == true) || (email.includes('"') == true))
+                {
+                    alert("Veuillez ne pas utiliser de caractère spécial !");
+                }
+                else
+                {
+                    //alert(`Email : ${email}, Mdp : ${password}`);
+                    setMsg(await invoke("sendLoginForm", {email: email, password: password}));
+                }
             }
         }
     }
 
+    async function login(event)
+    {
+        event.preventDefault();
+        const tokens = await invoke("login");
+        console.log(tokens);
+    }
+
+
     return (
         <main className="container">
             <h1>Page Connexion de Compte</h1>
-            <form className={styles.form} onSubmit={sendCampagin}>
+            <form className={styles.form} onSubmit={login}>
                 <p className={styles.emailP}>Email : <input className={styles.email} name = "email"/></p>
                 <p className={styles.passwordP}>Mot de passe : <input className={styles.password} type = "password" name = "password"/></p>
                 <button className={styles.submit} type ="submit">Envoyer</button>
