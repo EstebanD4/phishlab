@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import "../App.css";
 import { useEmailList } from "../hooks/useEmailList";
 import { useNavigate } from "react-router-dom";
+import styles from "./campaignBuilder.module.css";
 
 function CampaignBuilder() {
     const nav = useNavigate();
@@ -124,95 +125,79 @@ function CampaignBuilder() {
     }
 
     return (
-        <div className="gbuilder">
+        <div className={styles.gbuilder}>
             <h1>Campaign Builder</h1>
 
-            <div className="campaign-builder-container">
+            <div className={styles.campaignBuilderContainer}>
                 {/* ===== Colonne gauche ===== */}
-                <div className="emailContent">
-                    {error && <div className="error-box">{error}</div>}
+                <div className={styles.emailContent}>
+                    {error && <div className={styles.errorBox}>{error}</div>}
 
-                    <div className="sending">
-                        <div style={{ width: "100%" }}>
+                    <div className={styles.sending}>
+                        <div className={styles.campaign}>
                             <input
                                 inputMode="text"
                                 placeholder="Enter the campaign name"
-                                className={`nameinput ${liveErrors.campaignName ? "input-error" : ""}`}
+                                className={`${styles.campaignInput} ${liveErrors.campaignName ? "inputError" : ""}`}
                                 value={campaignName}
                                 onChange={(e) => setCampaignName(e.target.value)}
                                 onBlur={() => setTouched((t) => ({ ...t, campaignName: true }))}
                             />
                             {liveErrors.campaignName && (
-                                <div className="field-error">{liveErrors.campaignName}</div>
+                                <div className={styles.fieldError}>{liveErrors.campaignName}</div>
                             )}
                         </div>
 
-                        <div style={{ width: "100%" }}>
+                        <div className={styles.domain}>
                             <input
                                 inputMode="url"
                                 placeholder="Enter domain name"
-                                className={`domaininput ${liveErrors.domainName ? "input-error" : ""}`}
+                                className={`${styles.domainInput} ${liveErrors.domainName ? "inputError" : ""}`}
                                 value={domainName}
                                 onChange={(e) => setDomainName(e.target.value)}
                                 onBlur={() => setTouched((t) => ({ ...t, domainName: true }))}
                             />
-                            {liveErrors.domainName && (
-                                <div className="field-error">{liveErrors.domainName}</div>
-                            )}
+                            {liveErrors.domainName && (<div className={styles.fieldError}>{liveErrors.domainName}</div>)}
                         </div>
                     </div>
 
-                    <input
-                        inputMode="text"
-                        className={`object ${liveErrors.emailSubject ? "input-error" : ""}`}
-                        placeholder="Enter the subject of the email"
-                        value={emailSubject}
-                        onChange={(e) => setEmailSubject(e.target.value)}
-                        onBlur={() => setTouched((t) => ({ ...t, emailSubject: true }))}
-                    />
-                    {liveErrors.emailSubject && (
-                        <div className="field-error">{liveErrors.emailSubject}</div>
-                    )}
-
-                    <textarea
-                        className={`corpemail_textarea ${liveErrors.emailBody ? "input-error" : ""}`}
-                        placeholder="Enter the email body"
-                        value={emailBody}
-                        onChange={(e) => setEmailBody(e.target.value)}
-                        onBlur={() => setTouched((t) => ({ ...t, emailBody: true }))}
-                    />
-                    {liveErrors.emailBody && <div className="field-error">{liveErrors.emailBody}</div>}
-
-                    <div className="builder-actions">
-                        <button className="setCampain" onClick={handleCreateCampaign}>
-                            Create Campaign
-                        </button>
-
-                        <button className="button-secondary" onClick={() => nav("/")}>
-                            Back
-                        </button>
+                    <div className={styles.object}>
+                      <input
+                          inputMode="text"
+                          className={`${styles.objectInput} ${liveErrors.emailSubject ? "inputError" : ""}`}
+                          placeholder="Enter the subject of the email"
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          onBlur={() => setTouched((t) => ({ ...t, emailSubject: true }))}
+                      />
+                      {liveErrors.emailSubject && (<div className={styles.fieldError}>{liveErrors.emailSubject}</div>)}
+                    </div>
+                    <div className={styles.corpEmail}>
+                      <textarea
+                          className={`${styles.corpEmailTextArea} ${liveErrors.emailBody ? "inputError" : ""}`}
+                          placeholder="Enter the email body"
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          onBlur={() => setTouched((t) => ({ ...t, emailBody: true }))}
+                      />
+                      {liveErrors.emailBody && (<div className={styles.fieldError}>{liveErrors.emailBody}</div>)}
+                    </div>
+                    <div className={styles.builderActions}>
+                        <button className={styles.buttonCreateCampaign} onClick={handleCreateCampaign}>Create Campaign</button>
                     </div>
 
-                    <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
+                    <div className={styles.tip}>
                         Tip: add targets in the middle column before creating the campaign.
                     </div>
                 </div>
 
                 {/* ===== Colonne centrale : emails ===== */}
-                <div className="listadresses">
-                    <p>Emails</p>
+                <div className={styles.adressList}>
+                    <h2>Emails</h2>
 
-                    <button
-                        className="importcsv"
-                        onClick={() => {
-                            importFake();
-                            setTouched((t) => ({ ...t, emails: true }));
-                        }}
-                    >
-                        import csv
-                    </button>
+                    <button className={styles.importCsv} onClick={() => { importFake(); setTouched((t) => ({ ...t, emails: true })); }}> import csv </button>
 
-                    <div className="add-email-row">
+                    <div className={styles.addEmailRow}>
                         <input
                             inputMode="email"
                             placeholder="Add email (ex: user@company.com)"
@@ -220,41 +205,28 @@ function CampaignBuilder() {
                             onChange={(e) => setNewEmail(e.target.value)}
                             onFocus={() => setTouched((t) => ({ ...t, emails: true }))}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    addEmail();
-                                    setTouched((t) => ({ ...t, emails: true }));
-                                }
-                            }}
-                            className={`${liveNewEmailError ? "input-error" : ""}`}
-                        />
-                        <button
-                            onClick={() => {
-                                addEmail();
-                                setTouched((t) => ({ ...t, emails: true }));
-                            }}
-                            disabled={!canAdd}
-                        >
-                            Add
-                        </button>
+                                if (e.key === "Enter") {addEmail(); setTouched((t) => ({ ...t, emails: true }));}}}
+                            className={`${styles.inputEmailRow} ${liveNewEmailError ? styles.inputError : ""}`}/>
+                        <button onClick={() => { addEmail(); setTouched((t) => ({ ...t, emails: true }));}} disabled={!canAdd}> Add </button>
                     </div>
 
                     {/* Erreur live du champ “newEmail” */}
-                    {liveNewEmailError && <div className="field-error">{liveNewEmailError}</div>}
+                    {liveNewEmailError && <div className={styles.fieldError}>{liveNewEmailError}</div>}
 
                     {/* Erreur “submit” du hook (ex: empty, etc.) */}
-                    {emailError && <div className="field-error">{emailError}</div>}
+                    {emailError && <div className={styles.fieldError}>{emailError}</div>}
 
                     {/* Erreur live : aucun email dans la liste (si touché) */}
-                    {liveErrors.emails && <div className="field-error">{liveErrors.emails}</div>}
+                    {liveErrors.emails && <div className={styles.fieldError}>{liveErrors.emails}</div>}
 
-                    <div className="email-list">
+                    <div className={styles.emailList}>
                         {emails.length === 0 ? (
                             <p style={{ color: "#666", fontSize: 13 }}>No emails imported yet.</p>
                         ) : (
                             emails.map((email) => (
-                                <div key={email} className="email-item">
+                                <div key={email} className={styles.emailItem}>
                                     <span>{email}</span>
-                                    <button className="email-remove" onClick={() => removeEmail(email)} title="Remove">
+                                    <button className={styles.emailRemove} onClick={() => removeEmail(email)} title="Remove">
                                         ✕
                                     </button>
                                 </div>
@@ -264,7 +236,7 @@ function CampaignBuilder() {
                 </div>
 
                 {/* ===== Colonne droite : campagnes ===== */}
-                <div className="listecampains">
+                <div className={styles.campaignsList}>
                     <h2>Existing Campaigns</h2>
 
                     {campaigns.length === 0 ? (
@@ -278,12 +250,12 @@ function CampaignBuilder() {
                                         padding: "10px 12px",
                                         border: "1px solid #e5e7eb",
                                         borderRadius: 10,
-                                        background: "#fff",
+                                        background: "rgb(100, 100, 100)",
                                         textAlign: "left",
                                     }}
                                 >
                                     <div style={{ fontWeight: 700 }}>{c.name}</div>
-                                    <div style={{ fontSize: 12, color: "#666" }}>
+                                    <div style={{ fontSize: 12, color: "#fff" }}>
                                         {c.domain} • {c.targets.length} target(s)
                                     </div>
                                 </div>
@@ -292,6 +264,7 @@ function CampaignBuilder() {
                     )}
                 </div>
             </div>
+            <button className={styles.buttonBack} onClick={() => nav("/")}>Back</button>
         </div>
     );
 }
