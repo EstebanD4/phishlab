@@ -1,64 +1,40 @@
 /******  Campaign builder CSS  ******/
-/* === Campaign Builder === */
+button
+{
+  background-color: rgba(239, 239, 239, 0.3);
+}
 
+/* === Campaign Builder === */
 .campaignBuilderContainer {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 0.75fr;
+
+  align-items: center;
   justify-content: center;
-  gap: 20px;
-  padding: 0.01%;
+  gap: 5%;
   margin: 10vh;
 }
 
  /*===== Colonne gauche =====*/
 .emailContent {
-  display: flex;
-  flex-direction: column;
-  text-align: center;
-  flex: 2;
-  min-width: 320px;
+  grid-column: 1;
+
+  display: grid;
+  grid-template-rows: 1fr 1fr 3fr 0.75fr 0.5fr;
 }
 
-/* ===== Colonne centrale (liste mails) ===== */
-.listadresses {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 20px;
-  text-align: center;
-
-  flex: 1;
-  min-width: 260px;
-
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-  gap: 10px;
-}
-
-/* ===== Colonne droite (liste campagnes) ===== */
-.listecampains {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 20px;
-  text-align: center;
-
-  flex: 2;
-  min-width: 320px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-  gap: 10px;
-}
-
-/* ===== Boutons haut (sending) ===== */
 .sending {
-  display: flex;
-  flex-direction: row;
-  margin-bottom: 20px;
-  text-align: center;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: 10px;
+}
 
+.campaign {
+  grid-column: 1;
+}
+
+.domain {
+  grid-column: 2;
 }
 
 .sending button {
@@ -67,7 +43,7 @@
   border-radius: 8px;
   border: none;
   background: #4f46e5;
-  color: white;
+  color: black;
   cursor: pointer;
 }
 
@@ -75,24 +51,73 @@
   opacity: 0.9;
 }
 
-/* ===== Inputs ===== */
-.domaininput,
-.object,
-.corpemail {
-  margin-bottom: 20px;
+.object {
+  grid-row: 2;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.objectInput {
+  width: 95%;
+}
+
+.campaignInput, .domainInput, .objectInput, .corpEmailTextArea {
+  text-align: center;
+  color: black;
+}
+
+.corpEmail {
+  grid-row: 3;
+  text-align: center;
+}
+.corpEmailTextArea {
+  width: 95%;
+  height: 75%;
+  border-radius: 12px;
+}
+
+.builderActions {
+  grid-row: 4;
+  display: block;
+  margin: 0px auto 0;
+}
+
+.tip{
+  grid-row: 5;
+  font-size: 12; 
+  color: #666; 
   text-align: center;
 }
 
-.emailContent input {
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  margin-bottom: 12px;
+.fieldError {
+  color: red;
+  font-size: 13px;
+  text-align: center;
 }
 
-.emailContent input:focus {
-  outline: none;
-  border-color: #4f46e5;
+/* ===== Colonne centrale (liste mails) ===== */
+/*.listadresses {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  text-align: center;
+
+  flex: 1;
+  min-width: 260px;
+
+}*/
+.adressList {
+  grid-column: 2;
+  display: grid;
+  grid-template-rows: 0.25fr 0.25fr 1fr auto;
+  text-align: center;
+
+}
+
+.inputEmailRow {
+  text-align: center;
+  color: black;
 }
 
 /* ===== Elements liste mails ===== */
@@ -103,8 +128,33 @@
   cursor: pointer;
 }
 
+/* ===== Colonne droite (liste campagnes) ===== */
+.listecampains {
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  text-align: center;
 
+  flex: 2;
+  min-width: 320px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  gap: 10px;
+}
 
+.buttonBack{
+  display: block;
+  margin: 16px auto 0;
+  max-width: 500px;
+  width: 50%;
+}
+.emailContent, .adressList, .campaignsList {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+}
 /* ===== Responsive ===== */
 @media (max-width: 1100px) {
   .campaign-builder-container {
@@ -117,24 +167,4 @@
   .listecampains {
     min-width: auto;
   }
-}
-
-/* ===== Email body textarea ===== */
-.corpemail_textarea {
-  width: 100%;
-  min-height: 220px;          /* taille confortable */
-  resize: vertical;           /* l'utilisateur peut agrandir */
-  padding: 3px;
-  border-radius: 20px;
-  border: 3px solid #d1d5db;
-  font-family: monospace;
-  font-size: 14px;
-  line-height: 1.5;
-  background: #fafafa;
-}
-
-.corpemail_textarea:focus {
-  outline: none;
-  border-color: #4f46e5;
-  background: #ffffff;
 }
