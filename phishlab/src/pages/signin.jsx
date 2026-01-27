@@ -45,8 +45,14 @@ export default function Login()
     async function login(event)
     {
         event.preventDefault();
+        event.preventDefault();
         const tokens = await invoke("login");
         console.log(tokens);
+        const parsed =
+            typeof tokens === "string" ? JSON.parse(tokens) : tokens;
+        localStorage.setItem("Phishlab_Token", JSON.stringify(parsed));
+        nav("/CampaignBuilder");
+
     }
 
 
