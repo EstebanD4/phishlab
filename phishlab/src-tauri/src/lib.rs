@@ -20,7 +20,7 @@ use url::Url;
 
 // === CONFIG ===
 const KEYCLOAK: &str = "https://auth.phishlab.noryx.fr";
-<const REALM: &str = "phishlab";
+const REALM: &str = "phishlab";
 const CLIENT_ID: &str = "phishlab";
 const REDIRECT_URI: &str = "http://127.0.0.1:18181";
 // ==============
