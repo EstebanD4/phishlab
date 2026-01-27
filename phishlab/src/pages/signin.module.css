@@ -1,17 +1,17 @@
-p {
+.form p {
     margin: 0;
 }
 
-h1 {
+.form h1 {
     display: grid;
     margin-bottom: 3%;
 }
 
-input {
+.form input {
     background-color: #2f2f2f;
 }
 
-button {
+.form button {
     background-color: rgb(100, 100, 100);
 }
 
