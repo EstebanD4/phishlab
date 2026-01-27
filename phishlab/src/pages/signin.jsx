@@ -3,12 +3,19 @@ import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import "../App.css";
+<<<<<<< HEAD
+=======
 import styles from "./signin.module.css";
+>>>>>>> 7c00952d81a17a508f5c1ccbb69c3035a35b1fb9
 
 export default function Login()
 {
     const nav = useNavigate();
+<<<<<<< HEAD
+    /*const [msg, setMsg] = useState("");
+=======
     const [msg, setMsg] = useState("");
+>>>>>>> 7c00952d81a17a508f5c1ccbb69c3035a35b1fb9
 
     async function sendCampagin(event)
     {
@@ -40,7 +47,11 @@ export default function Login()
                 }
             }
         }
+<<<<<<< HEAD
+    }*/
+=======
     }
+>>>>>>> 7c00952d81a17a508f5c1ccbb69c3035a35b1fb9
 
     async function login(event)
     {
@@ -59,6 +70,10 @@ export default function Login()
     return (
         <main className="container">
             <h1>Page Connexion de Compte</h1>
+<<<<<<< HEAD
+            <p><button type="button" onClick={event => login(event)}>Connectez-vous !</button></p>
+            <p><button onClick={() => nav("/campaign")}>Campaign Builder</button></p>
+=======
             <form className={styles.form} onSubmit={login}>
                 <p className={styles.emailP}>Email : <input className={styles.email} name = "email"/></p>
                 <p className={styles.passwordP}>Mot de passe : <input className={styles.password} type = "password" name = "password"/></p>
@@ -67,6 +82,7 @@ export default function Login()
             <br />
             <p>{msg}</p>
             <p>Vous n'avez pas de compte ? <button type="button" onClick={() => nav("/register")}>Inscrivez vous</button></p>
+>>>>>>> 7c00952d81a17a508f5c1ccbb69c3035a35b1fb9
         </main>
   );
 }

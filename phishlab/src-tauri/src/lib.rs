@@ -19,8 +19,8 @@ use tokio::net::TcpListener;
 use url::Url;
 
 // === CONFIG ===
-const KEYCLOAK: &str = "https://49.12.99.223:8443";
-const REALM: &str = "phishlab";
+const KEYCLOAK: &str = "https://auth.phishlab.noryx.fr";
+<const REALM: &str = "phishlab";
 const CLIENT_ID: &str = "phishlab";
 const REDIRECT_URI: &str = "http://127.0.0.1:18181";
 // ==============
@@ -103,7 +103,6 @@ async fn login() -> Result<String, String> {
     // 5 Appel /token : échange du "code" contre des tokens (access_token, refresh_token, id_token)
     // On construit un client reqwest.
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)// ⚠️ DANGER : accepte les certificats TLS invalides.
         .build()// build() crée le client HTTP.
         .map_err(|e| e.to_string())?;
 

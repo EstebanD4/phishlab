@@ -134,11 +134,11 @@ function CampaignBuilder() {
                     {error && <div className={styles.errorBox}>{error}</div>}
 
                     <div className={styles.sending}>
-                        <div style={{ width: "100%" }}>
+                        <div className={styles.campaign}>
                             <input
                                 inputMode="text"
                                 placeholder="Enter the campaign name"
-                                className={`${styles.nameinput} ${liveErrors.campaignName ? "inputError" : ""}`}
+                                className={`${styles.campaignInput} ${liveErrors.campaignName ? "inputError" : ""}`}
                                 value={campaignName}
                                 onChange={(e) => setCampaignName(e.target.value)}
                                 onBlur={() => setTouched((t) => ({ ...t, campaignName: true }))}
@@ -148,70 +148,54 @@ function CampaignBuilder() {
                             )}
                         </div>
 
-                        <div style={{ width: "100%" }}>
+                        <div className={styles.domain}>
                             <input
                                 inputMode="url"
                                 placeholder="Enter domain name"
-                                className={`${styles.domaininput} ${liveErrors.domainName ? "inputError" : ""}`}
+                                className={`${styles.domainInput} ${liveErrors.domainName ? "inputError" : ""}`}
                                 value={domainName}
                                 onChange={(e) => setDomainName(e.target.value)}
                                 onBlur={() => setTouched((t) => ({ ...t, domainName: true }))}
                             />
-                            {liveErrors.domainName && (
-                                <div className={styles.fieldError}>{liveErrors.domainName}</div>
-                            )}
+                            {liveErrors.domainName && (<div className={styles.fieldError}>{liveErrors.domainName}</div>)}
                         </div>
                     </div>
 
-                    <input
-                        inputMode="text"
-                        className={`${styles.object} ${liveErrors.emailSubject ? "inputError" : ""}`}
-                        placeholder="Enter the subject of the email"
-                        value={emailSubject}
-                        onChange={(e) => setEmailSubject(e.target.value)}
-                        onBlur={() => setTouched((t) => ({ ...t, emailSubject: true }))}
-                    />
-                    {liveErrors.emailSubject && (
-                        <div className={styles.fieldError}>{liveErrors.emailSubject}</div>
-                    )}
-
-                    <textarea
-                        className={`${styles.corpemail_textarea} ${liveErrors.emailBody ? "inputError" : ""}`}
-                        placeholder="Enter the email body"
-                        value={emailBody}
-                        onChange={(e) => setEmailBody(e.target.value)}
-                        onBlur={() => setTouched((t) => ({ ...t, emailBody: true }))}
-                    />
-                    {liveErrors.emailBody && <div className={styles.fieldError}>{liveErrors.emailBody}</div>}
-
+                    <div className={styles.object}>
+                      <input
+                          inputMode="text"
+                          className={`${styles.objectInput} ${liveErrors.emailSubject ? "inputError" : ""}`}
+                          placeholder="Enter the subject of the email"
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          onBlur={() => setTouched((t) => ({ ...t, emailSubject: true }))}
+                      />
+                      {liveErrors.emailSubject && (<div className={styles.fieldError}>{liveErrors.emailSubject}</div>)}
+                    </div>
+                    <div className={styles.corpEmail}>
+                      <textarea
+                          className={`${styles.corpEmailTextArea} ${liveErrors.emailBody ? "inputError" : ""}`}
+                          placeholder="Enter the email body"
+                          value={emailBody}
+                          onChange={(e) => setEmailBody(e.target.value)}
+                          onBlur={() => setTouched((t) => ({ ...t, emailBody: true }))}
+                      />
+                      {liveErrors.emailBody && (<div className={styles.fieldError}>{liveErrors.emailBody}</div>)}
+                    </div>
                     <div className={styles.builderActions}>
-                        <button className={styles.setCampain} onClick={handleCreateCampaign}>
-                            Create Campaign
-                        </button>
-
-                        <button className={styles.buttonSecondary} onClick={() => nav("/")}>
-                            Back
-                        </button>
+                        <button className={styles.buttonCreateCampaign} onClick={handleCreateCampaign}>Create Campaign</button>
                     </div>
 
-                    <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
+                    <div className={styles.tip}>
                         Tip: add targets in the middle column before creating the campaign.
                     </div>
                 </div>
 
                 {/* ===== Colonne centrale : emails ===== */}
-                <div className={styles.listadresses}>
-                    <p>Emails</p>
+                <div className={styles.adressList}>
+                    <h2>Emails</h2>
 
-                    <button
-                        className={styles.importCsv}
-                        onClick={() => {
-                            importFake();
-                            setTouched((t) => ({ ...t, emails: true }));
-                        }}
-                    >
-                        import csv
-                    </button>
+                    <button className={styles.importCsv} onClick={() => { importFake(); setTouched((t) => ({ ...t, emails: true })); }}> import csv </button>
 
                     <div className={styles.addEmailRow}>
                         <input
@@ -221,22 +205,9 @@ function CampaignBuilder() {
                             onChange={(e) => setNewEmail(e.target.value)}
                             onFocus={() => setTouched((t) => ({ ...t, emails: true }))}
                             onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    addEmail();
-                                    setTouched((t) => ({ ...t, emails: true }));
-                                }
-                            }}
-                            className={`${liveNewEmailError ? "inputError" : ""}`}
-                        />
-                        <button
-                            onClick={() => {
-                                addEmail();
-                                setTouched((t) => ({ ...t, emails: true }));
-                            }}
-                            disabled={!canAdd}
-                        >
-                            Add
-                        </button>
+                                if (e.key === "Enter") {addEmail(); setTouched((t) => ({ ...t, emails: true }));}}}
+                            className={`${styles.inputEmailRow} ${liveNewEmailError ? styles.inputError : ""}`}/>
+                        <button onClick={() => { addEmail(); setTouched((t) => ({ ...t, emails: true }));}} disabled={!canAdd}> Add </button>
                     </div>
 
                     {/* Erreur live du champ “newEmail” */}
@@ -265,7 +236,7 @@ function CampaignBuilder() {
                 </div>
 
                 {/* ===== Colonne droite : campagnes ===== */}
-                <div className={styles.listecampains}>
+                <div className={styles.campaignsList}>
                     <h2>Existing Campaigns</h2>
 
                     {campaigns.length === 0 ? (
@@ -293,6 +264,7 @@ function CampaignBuilder() {
                     )}
                 </div>
             </div>
+            <button className={styles.buttonBack} onClick={() => nav("/")}>Back</button>
         </div>
     );
 }
