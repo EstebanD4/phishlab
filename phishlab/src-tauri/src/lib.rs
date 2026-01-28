@@ -1,16 +1,22 @@
-extern crate bcrypt;
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 extern crate pkce;
 extern crate reqwest;
 extern crate tokio;
-use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation,decode_header};
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
-use url::Url;
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+
+use once_cell::sync::Lazy;
+use serde::Deserialize;
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
 use tauri::webview::WebviewWindowBuilder;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, RwLock};
+use url::Url;
 
 // === CONFIG ===
 const KEYCLOAK: &str = "https://auth.phishlab.noryx.fr";
@@ -19,96 +25,39 @@ const CLIENT_ID: &str = "phishlab";
 const REDIRECT_URI: &str = "http://127.0.0.1:18181";
 // ==============
 
-#[tauri::command]
-async fn login(app: AppHandle) -> Result<String, String> {
+// --------------------
+// JWKS cache + structs
+// --------------------
 
-    let code_verifier = pkce::code_verifier(64); // Génère un "code_verifier" PKCE (secret aléatoire) de longueur 64.
-    let code_challenge = pkce::code_challenge(&code_verifier); // Calcule le "code_challenge" à partir du verifier.
-    let code_verifier = String::from_utf8(code_verifier).unwrap();// Convertit les bytes du verifier en String UTF-8.
+static JWKS_CACHE: Lazy<RwLock<Option<CachedKeys>>> = Lazy::new(|| RwLock::new(None));
 
-    // 2️ Construire URL Keycloak
-    let auth_url = format!(
-        "{}/realms/{}/protocol/openid-connect/auth\
-        ?client_id={}\
-        &response_type=code\
-        &redirect_uri={}\
-        &scope=openid\
-        &code_challenge={}\
-        &code_challenge_method=S256",
-        KEYCLOAK,
-        REALM,
-        CLIENT_ID,
-        urlencoding::encode(REDIRECT_URI), // On encode l’URL pour qu’elle soit valide dans une query string (espaces, /, :, etc.).
-        code_challenge
-    );
-
-    // channel pour récupérer le code depuis le callback de navigation
-    let (tx, rx) = oneshot::channel::<String>();
-
-    // On va avoir besoin de partager tx avec la closure on_navigation
-    let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
-
-    let redirect_prefix = REDIRECT_URI.to_string();
-
-    // Crée une fenêtre Tauri qui affiche Keycloak
-    let win = WebviewWindowBuilder::new(&app, "oauth", tauri::WebviewUrl::External(auth_url.parse().unwrap()))
-        .title("Connexion")
-        .on_navigation({
-            let tx = tx.clone();
-            move |url| {
-                // Intercepte le moment où Keycloak redirige vers ton redirect_uri
-                if url.as_str().starts_with(&redirect_prefix) {
-                    // parse ?code=...
-                    if let Ok(parsed) = Url::parse(url.as_str()) {
-                        if let Some((_, code)) = parsed.query_pairs().find(|(k, _)| k == "code") {
-                            if let Some(tx) = tx.lock().unwrap().take() {
-                                let _ = tx.send(code.to_string());
-                            }
-                        }
-                    }
-                    // on bloque cette navigation (pas besoin de charger la page localhost)
-                    return false;
-                }
-                true
-            }
-        })
-        .build()
-        .map_err(|e| e.to_string())?;
-
-    // attend le code
-    let code = rx.await.map_err(|_| "Login annulé ou fenêtre fermée".to_string())?;
-
-    // ferme la fenêtre oauth (force close)
-    win.destroy().map_err(|e| e.to_string())?;
-
-    // 5 Appel /token : échange du "code" contre des tokens (access_token, refresh_token, id_token)
-    // On construit un client reqwest.
-    let client = reqwest::Client::builder()
-        .build()// build() crée le client HTTP.
-        .map_err(|e| e.to_string())?;
-
-    // On fait une requête POST vers l’endpoint token de Keycloak.
-    let res = client
-        .post(format!(
-            "{}/realms/{}/protocol/openid-connect/token",
-            KEYCLOAK, REALM
-        ))
-        .form(&[
-            ("grant_type", "authorization_code"), // On dit qu’on veut échanger un authorization code.
-            ("client_id", CLIENT_ID), // Identifie le client.
-            ("code", &code), // Le code reçu dans le callback.
-            ("redirect_uri", REDIRECT_URI), // Doit correspondre au redirect_uri utilisé dans /auth et autorisé côté Keycloak.
-            ("code_verifier", &code_verifier), // PKCE : on envoie le verifier (secret) pour prouver qu’on est bien l’app qui a lancé le flow.
-        ])
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let json = res.text().await.map_err(|e| e.to_string())?;
-
-    // 6️ Retourner les tokens (brut, simple)
-    Ok(json) // (ou retourne tes tokens)
+#[derive(Clone)]
+struct CachedKeys {
+    fetched_at: Instant,
+    keys_by_kid: HashMap<String, DecodingKey>,
 }
+
+#[derive(Debug, Deserialize)]
+struct Jwks {
+    keys: Vec<Jwk>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Jwk {
+    kid: String,
+    kty: String,
+    n: String,
+    e: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Claims {
+    exp: usize,
+    iss: String,
+    azp: Option<String>, // ✅ utile pour vérifier que le token est pour ton client
+    aud: Option<serde_json::Value>, // optionnel (pas utilisé ici)
+}
+
 async fn get_jwks_keys(realm_url: &str) -> Result<HashMap<String, DecodingKey>, String> {
     let ttl = Duration::from_secs(600); // 10 min
 
@@ -123,7 +72,11 @@ async fn get_jwks_keys(realm_url: &str) -> Result<HashMap<String, DecodingKey>, 
     }
 
     // 2) fetch JWKS
-    let jwks_url = format!("{}/protocol/openid-connect/certs", realm_url.trim_end_matches('/'));
+    let jwks_url = format!(
+        "{}/protocol/openid-connect/certs",
+        realm_url.trim_end_matches('/')
+    );
+
     let jwks: Jwks = reqwest::Client::new()
         .get(jwks_url)
         .send()
@@ -132,7 +85,7 @@ async fn get_jwks_keys(realm_url: &str) -> Result<HashMap<String, DecodingKey>, 
         .json()
         .await
         .map_err(|e| format!("JWKS json error: {e}"))?;
-/*sef*/
+
     let mut map = HashMap::new();
     for k in jwks.keys {
         if k.kty != "RSA" {
@@ -155,13 +108,100 @@ async fn get_jwks_keys(realm_url: &str) -> Result<HashMap<String, DecodingKey>, 
     Ok(map)
 }
 
+// --------------------
+// Commands
+// --------------------
+
+#[tauri::command]
+async fn login(app: AppHandle) -> Result<String, String> {
+    let code_verifier_bytes = pkce::code_verifier(64);
+    let code_challenge = pkce::code_challenge(&code_verifier_bytes);
+    let code_verifier = String::from_utf8(code_verifier_bytes).map_err(|e| e.to_string())?;
+
+    let auth_url = format!(
+        "{}/realms/{}/protocol/openid-connect/auth\
+        ?client_id={}\
+        &response_type=code\
+        &redirect_uri={}\
+        &scope=openid\
+        &code_challenge={}\
+        &code_challenge_method=S256",
+        KEYCLOAK,
+        REALM,
+        CLIENT_ID,
+        urlencoding::encode(REDIRECT_URI),
+        code_challenge
+    );
+
+    let (tx, rx) = oneshot::channel::<String>();
+    let tx = Arc::new(Mutex::new(Some(tx)));
+    let redirect_prefix = REDIRECT_URI.to_string();
+
+    let win = WebviewWindowBuilder::new(
+        &app,
+        "oauth",
+        tauri::WebviewUrl::External(auth_url.parse().unwrap()),
+    )
+        .title("Connexion")
+        .on_navigation({
+            let tx = tx.clone();
+            move |url| {
+                // Intercepte le redirect vers redirect_uri
+                if url.as_str().starts_with(&redirect_prefix) {
+                    if let Ok(parsed) = Url::parse(url.as_str()) {
+                        if let Some((_, code)) = parsed.query_pairs().find(|(k, _)| k == "code") {
+                            if let Some(tx) = tx.lock().unwrap().take() {
+                                let _ = tx.send(code.to_string());
+                            }
+                        }
+                    }
+                    // bloque navigation vers localhost
+                    return false;
+                }
+                true
+            }
+        })
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let code = rx
+        .await
+        .map_err(|_| "Login annulé ou fenêtre fermée".to_string())?;
+
+    // ferme la fenêtre oauth
+    win.destroy().map_err(|e| e.to_string())?;
+
+    // Exchange code -> tokens
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let res = client
+        .post(format!(
+            "{}/realms/{}/protocol/openid-connect/token",
+            KEYCLOAK, REALM
+        ))
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", CLIENT_ID),
+            ("code", &code),
+            ("redirect_uri", REDIRECT_URI),
+            ("code_verifier", &code_verifier),
+        ])
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let json = res.text().await.map_err(|e| e.to_string())?;
+    Ok(json)
+}
+
 #[tauri::command]
 async fn verify_token(token: String) -> Result<bool, String> {
     if token.trim().is_empty() {
         return Ok(false);
     }
 
-    // Realm URL + issuer attendu (Keycloak met souvent iss = <KEYCLOAK>/realms/<REALM>)
     let realm_url = format!("{}/realms/{}", KEYCLOAK.trim_end_matches('/'), REALM);
     let expected_issuer = realm_url.clone();
 
@@ -172,35 +212,44 @@ async fn verify_token(token: String) -> Result<bool, String> {
         None => return Ok(false),
     };
 
-    // Récupérer la clé correspondant au kid
+    // Key by kid
     let keys = get_jwks_keys(&realm_url).await?;
     let key = match keys.get(&kid) {
         Some(k) => k,
         None => return Ok(false),
     };
 
-    // Validation (signature + exp + iss)
     let mut validation = Validation::new(Algorithm::RS256);
     validation.validate_exp = true;
-    validation.validate_aud = false; // ✅ IMPORTANT : Keycloak met souvent aud="account" sur l'access_token
-    validation.set_issuer(&[expected_issuer.as_str()]);
 
+    // ✅ important pour ton cas : access_token a souvent aud="account"
+    validation.validate_aud = false;
+
+    validation.set_issuer(&[expected_issuer.as_str()]);
 
     let data = decode::<Claims>(&token, key, &validation)
         .map_err(|e| format!("JWT verify error: {e}"))?;
 
-    // check issuer (normalement déjà ok via set_issuer)
+    // Issuer check (sécurité)
     if data.claims.iss != expected_issuer {
+        return Ok(false);
+    }
+
+    // ✅ Check client via azp
+    if data.claims.azp.as_deref() != Some(CLIENT_ID) {
         return Ok(false);
     }
 
     Ok(true)
 }
 
+// --------------------
+// Tauri entry
+// --------------------
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![login, verify_token])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
