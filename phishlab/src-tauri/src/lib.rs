@@ -1,22 +1,15 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 extern crate bcrypt;
 extern crate pkce;
 extern crate reqwest;
 extern crate tokio;
 
-//use reqwest::Client;
-/*use bcrypt::{hash, verify, DEFAULT_COST};
-
-#[tauri::command]
-fn sendRegisterForm(_name: &str, _firstname: &str, _email: &str, password: &str) -> String {
-    let hash_password = hash(password, DEFAULT_COST).unwrap();
-    format!("Password: {}, Password Hash {}", password, hash_password)
-}*/
-
-//----------------------------------------------------------
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use url::Url;
+
+use tauri::{AppHandle, Manager};
+use tauri::webview::WebviewWindowBuilder;
+use tokio::sync::oneshot;
 
 // === CONFIG ===
 const KEYCLOAK: &str = "https://auth.phishlab.noryx.fr";
@@ -25,23 +18,8 @@ const CLIENT_ID: &str = "phishlab";
 const REDIRECT_URI: &str = "http://127.0.0.1:18181";
 // ==============
 
-/*fn sendLoginForm(_email: &str, password: &str) -> String {
-    
-    let hash_password = "$2b$12$01ptwBwbBWP4xxwD3dQtb.GLL1tb7aTBULtWdUAKnoFLwhy6SobyK";
-
-    if verify(password, hash_password).unwrap_or(false) {
-        format!("Pass valid !")
-    } else {
-        format!("Pass Invalid !")
-    }
-}*/
-/*#[tauri::command]
-async fn register() -> String {
-    let auth_url = format!("{}/realms/{}/protocol/openid-connect/registrations", KEYCLOAK, REALM);
-}*/
-
 #[tauri::command]
-async fn login() -> Result<String, String> {
+async fn login(app: AppHandle) -> Result<String, String> {
 
     let code_verifier = pkce::code_verifier(64); // Génère un "code_verifier" PKCE (secret aléatoire) de longueur 64.
     let code_challenge = pkce::code_challenge(&code_verifier); // Calcule le "code_challenge" à partir du verifier.
@@ -63,42 +41,44 @@ async fn login() -> Result<String, String> {
         code_challenge
     );
 
-    // 3️ Ouvrir navigateur
-    // L’utilisateur va voir Keycloak, entrer ses identifiants, et valider.
-    // map_err(...) transforme l’erreur en String pour matcher Result<String, String>.
-    // ? : si erreur, on sort immédiatement de la fonction avec Err(...)
-    tauri_plugin_opener::open_url(auth_url, None::<&str>).map_err(|e| e.to_string())?;
+    // channel pour récupérer le code depuis le callback de navigation
+    let (tx, rx) = oneshot::channel::<String>();
 
-    // 4️ Attendre callback localhost
-    let listener = TcpListener::bind("127.0.0.1:18181")
-        .await
+    // On va avoir besoin de partager tx avec la closure on_navigation
+    let tx = std::sync::Arc::new(std::sync::Mutex::new(Some(tx)));
+
+    let redirect_prefix = REDIRECT_URI.to_string();
+
+    // Crée une fenêtre Tauri qui affiche Keycloak
+    let win = WebviewWindowBuilder::new(&app, "oauth", tauri::WebviewUrl::External(auth_url.parse().unwrap()))
+        .title("Connexion")
+        .on_navigation({
+            let tx = tx.clone();
+            move |url| {
+                // Intercepte le moment où Keycloak redirige vers ton redirect_uri
+                if url.as_str().starts_with(&redirect_prefix) {
+                    // parse ?code=...
+                    if let Ok(parsed) = Url::parse(url.as_str()) {
+                        if let Some((_, code)) = parsed.query_pairs().find(|(k, _)| k == "code") {
+                            if let Some(tx) = tx.lock().unwrap().take() {
+                                let _ = tx.send(code.to_string());
+                            }
+                        }
+                    }
+                    // on bloque cette navigation (pas besoin de charger la page localhost)
+                    return false;
+                }
+                true
+            }
+        })
+        .build()
         .map_err(|e| e.to_string())?;
 
-    let (mut socket, _) = listener.accept().await.map_err(|e| e.to_string())?;// On accepte UNE connexion : celle du navigateur quand Keycloak redirige vers localhost.
+    // attend le code
+    let code = rx.await.map_err(|_| "Login annulé ou fenêtre fermée".to_string())?;
 
-    let mut buf = [0u8; 4096];// Buffer de lecture : on lit la requête HTTP envoyée par le navigateur.
-    let n = socket.read(&mut buf).await.map_err(|e| e.to_string())?;// On lit les bytes reçus sur la socket.
-    let req = String::from_utf8_lossy(&buf[..n]);// On convertit ces bytes en texte lisible (sans planter si certains bytes sont bizarres).
-
-    // Exemple: GET /?code=XXX HTTP/1.1
-    // On prend la première ligne de la requête ("GET ... HTTP/1.1"),
-    // puis on récupère le 2ème élément séparé par des espaces : le chemin "/?code=..."
-    let path = req.lines().next().unwrap().split(' ').nth(1).unwrap();
-    let url = Url::parse(&format!("http://localhost{}", path)).unwrap();// On transforme ce path en URL complète pour pouvoir parser les query params proprement.
-
-    // On extrait la valeur du paramètre "code" dans l’URL.
-    // Ce "code" est l’authorization code temporaire renvoyé par Keycloak après login réussi.
-    let code = url
-        .query_pairs()
-        .find(|(k, _)| k == "code")  // on cherche la paire (clé, valeur) où clé == "code"
-        .map(|(_, v)| v.to_string()) // on récupère la valeur (v) et on la transforme en String
-        .ok_or("Pas de code reçu")?; // si pas trouvé, on retourne Err("Pas de code reçu")
-
-    // Réponse navigateur : on envoie une petite page/texte HTTP pour que l’utilisateur voie un message.
-    socket
-        .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nLogin OK, vous pouvez fermer la page.")
-        .await
-        .unwrap();
+    // ferme la fenêtre oauth (force close)
+    win.destroy().map_err(|e| e.to_string())?;
 
     // 5 Appel /token : échange du "code" contre des tokens (access_token, refresh_token, id_token)
     // On construit un client reqwest.
@@ -126,7 +106,7 @@ async fn login() -> Result<String, String> {
     let json = res.text().await.map_err(|e| e.to_string())?;
 
     // 6️ Retourner les tokens (brut, simple)
-    Ok(json)
+    Ok(json) // (ou retourne tes tokens)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
