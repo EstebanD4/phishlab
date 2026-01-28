@@ -3,16 +3,43 @@ extern crate bcrypt;
 extern crate pkce;
 extern crate reqwest;
 extern crate tokio;
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation,decode_header};
 
-//use reqwest::Client;
-/*use bcrypt::{hash, verify, DEFAULT_COST};
+use once_cell::sync::Lazy;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
-#[tauri::command]
-fn sendRegisterForm(_name: &str, _firstname: &str, _email: &str, password: &str) -> String {
-    let hash_password = hash(password, DEFAULT_COST).unwrap();
-    format!("Password: {}, Password Hash {}", password, hash_password)
-}*/
+// Cache des clés JWKS (pour éviter de fetch à chaque vérif)
+static JWKS_CACHE: Lazy<RwLock<Option<CachedKeys>>> = Lazy::new(|| RwLock::new(None));
 
+#[derive(Clone)]
+struct CachedKeys {
+    fetched_at: Instant,
+    keys_by_kid: HashMap<String, DecodingKey>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Jwks {
+    keys: Vec<Jwk>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Jwk {
+    kid: String,
+    kty: String,
+    n: String,
+    e: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Claims {
+    exp: usize,
+    iss: String,
+    azp: String,
+    // Tu peux ajouter aud/sub/etc. si tu veux
+}
 //----------------------------------------------------------
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -128,12 +155,99 @@ async fn login() -> Result<String, String> {
     // 6️ Retourner les tokens (brut, simple)
     Ok(json)
 }
+async fn get_jwks_keys(realm_url: &str) -> Result<HashMap<String, DecodingKey>, String> {
+    let ttl = Duration::from_secs(600); // 10 min
+
+    // 1) cache check
+    {
+        let guard = JWKS_CACHE.read().await;
+        if let Some(c) = guard.as_ref() {
+            if c.fetched_at.elapsed() < ttl {
+                return Ok(c.keys_by_kid.clone());
+            }
+        }
+    }
+
+    // 2) fetch JWKS
+    let jwks_url = format!("{}/protocol/openid-connect/certs", realm_url.trim_end_matches('/'));
+    let jwks: Jwks = reqwest::Client::new()
+        .get(jwks_url)
+        .send()
+        .await
+        .map_err(|e| format!("JWKS fetch error: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("JWKS json error: {e}"))?;
+
+    let mut map = HashMap::new();
+    for k in jwks.keys {
+        if k.kty != "RSA" {
+            continue;
+        }
+        let key = DecodingKey::from_rsa_components(&k.n, &k.e)
+            .map_err(|e| format!("DecodingKey error: {e}"))?;
+        map.insert(k.kid, key);
+    }
+
+    // 3) update cache
+    {
+        let mut guard = JWKS_CACHE.write().await;
+        *guard = Some(CachedKeys {
+            fetched_at: Instant::now(),
+            keys_by_kid: map.clone(),
+        });
+    }
+
+    Ok(map)
+}
+
+#[tauri::command]
+async fn verify_token(token: String) -> Result<bool, String> {
+    if token.trim().is_empty() {
+        return Ok(false);
+    }
+
+    // Realm URL + issuer attendu (Keycloak met souvent iss = <KEYCLOAK>/realms/<REALM>)
+    let realm_url = format!("{}/realms/{}", KEYCLOAK.trim_end_matches('/'), REALM);
+    let expected_issuer = realm_url.clone();
+
+    // Header -> kid
+    let header = decode_header(&token).map_err(|e| format!("Header decode error: {e}"))?;
+    let kid = match header.kid {
+        Some(k) => k,
+        None => return Ok(false),
+    };
+
+    // Récupérer la clé correspondant au kid
+    let keys = get_jwks_keys(&realm_url).await?;
+    let key = match keys.get(&kid) {
+        Some(k) => k,
+        None => return Ok(false),
+    };
+
+    // Validation (signature + exp + iss)
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.validate_exp = true;
+    validation.validate_aud = false; // ✅ IMPORTANT : Keycloak met souvent aud="account" sur l'access_token
+    validation.set_issuer(&[expected_issuer.as_str()]);
+
+
+    let data = decode::<Claims>(&token, key, &validation)
+        .map_err(|e| format!("JWT verify error: {e}"))?;
+
+    // check issuer (normalement déjà ok via set_issuer)
+    if data.claims.iss != expected_issuer {
+        return Ok(false);
+    }
+
+    Ok(true)
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![login])
+        .invoke_handler(tauri::generate_handler![login, verify_token])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
