@@ -1,8 +1,8 @@
 /******  Campaign builder CSS  ******/
-button
-{
-  background-color: rgba(239, 239, 239, 0.3);
+button, input, textarea {
+  background-color: rgba(129, 129, 129, 0.418);
 }
+
 
 /* === Campaign Builder === */
 .campaignBuilderContainer {
@@ -63,7 +63,7 @@ button
 
 .campaignInput, .domainInput, .objectInput, .corpEmailTextArea {
   text-align: center;
-  color: black;
+  color: aliceblue;
 }
 
 .corpEmail {
